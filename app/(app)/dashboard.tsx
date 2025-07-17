@@ -2,16 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Modal, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useUserStore } from '../../store/userStore';
 import { useProductionStore } from '../../store/productionStore';
+import { useSalesStore } from '../../store/salesStore'; 
 import { auth } from '../../services/firebase';
 import { createLot } from '../../services/productionService';
 import { recordSale } from '../../services/salesService';
 import { ProductionForm } from '../../components/ProductionForm';
 import { SalesForm } from '../../components/SalesForm';
-import { ProductionDashboard } from '../../components/ProductionDashboard'; 
+import { ProductionDashboard } from '../../components/ProductionDashboard';
+import { SalesDashboard } from '../../components/SalesDashboard'; 
 
 export default function DashboardPage() {
   const { user } = useUserStore();
-  const { lots, isLoading, listenToLots, unsubscribe } = useProductionStore();
+  const { lots, isLoading: isProductionLoading, listenToLots, unsubscribe: unsubscribeProduction } = useProductionStore();
+  const { sales, isLoading: isSalesLoading, listenToSales, unsubscribe: unsubscribeSales } = useSalesStore();
 
   const [isProductionModalOpen, setProductionModalOpen] = useState(false);
   const [isSalesModalOpen, setSalesModalOpen] = useState(false);
@@ -19,10 +22,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user?.uid) {
       listenToLots(user.uid);
+      listenToSales(user.uid); 
     }
     
     return () => {
-      unsubscribe();
+      unsubscribeProduction();
+      unsubscribeSales();
     };
   }, [user]);
 
@@ -57,10 +62,19 @@ export default function DashboardPage() {
 
         <View style={styles.dashboardSection}>
           <Text style={styles.sectionTitle}>Status da Produção</Text>
-          {isLoading ? (
+          {isProductionLoading ? (
             <ActivityIndicator size="large" color="#007bff" />
           ) : (
             <ProductionDashboard lots={lots} />
+          )}
+        </View>
+
+        <View style={styles.dashboardSection}>
+          <Text style={styles.sectionTitle}>Lucro por Produto</Text>
+          {isSalesLoading ? (
+            <ActivityIndicator size="large" color="#28a745" />
+          ) : (
+            <SalesDashboard sales={sales} />
           )}
         </View>
 
@@ -86,7 +100,7 @@ const styles = StyleSheet.create({
   welcomeText: { fontSize: 16, marginBottom: 20, color: '#666' },
   actionsContainer: { width: '100%' },
   buttonWrapper: { marginVertical: 8, width: '100%' },
-  dashboardSection: { marginTop: 30, width: '100%' },
+  dashboardSection: { marginTop: 30, width: '100%', backgroundColor: '#fff', borderRadius: 12, padding: 15, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, },
   sectionTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
   logoutButtonContainer: { marginTop: 40, width: '80%', marginBottom: 40 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
