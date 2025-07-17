@@ -1,67 +1,21 @@
-// import { View, Text, Button, StyleSheet, Alert } from 'react-native';
-// import { doSignOut } from '../../services/authService';
-// //import { useRouter } from 'expo-router';
-
-// export default function DashboardPage() {
-//   //const router = useRouter();
-
-//   const handleLogout = async () => {
-//     try {
-//       await doSignOut();
-//       // O arquivo _layout.tsx irá detectar o logout e redirecionar automaticamente.
-//     } catch (error) {
-//       console.error('Erro ao fazer logout:', error);
-//       Alert.alert('Erro', 'Não foi possível sair.');
-//     }
-//   };
-
-//   return (
-//     <View style={styles.container}>
-//       <Text style={styles.title}>Dashboard</Text>
-//       <Text>Bem-vindo! Você está logado.</Text>
-//       <View style={styles.buttonContainer}>
-//         <Button title="Sair" onPress={handleLogout} color="#ff4444" />
-//       </View>
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     padding: 16,
-//   },
-//   title: {
-//     fontSize: 28,
-//     fontWeight: 'bold',
-//     marginBottom: 20,
-//   },
-//   buttonContainer: {
-//     marginTop: 30,
-//     width: '60%',
-//   },
-// });
-
 import React, { useState } from 'react';
 import { View, Text, Button, StyleSheet, Modal, Alert } from 'react-native';
-import { useUserStore } from '../../store/userStore'; 
-import { doSignOut } from '../../services/authService';
+
+// Importando as peças que vamos usar
+import { useUserStore } from '../../store/userStore';
+import { auth } from '../../services/firebase';
 import { createLot } from '../../services/productionService';
+import { recordSale } from '../../services/salesService';
 import { ProductionForm } from '../../components/ProductionForm';
+import { SalesForm } from '../../components/SalesForm';
 
 export default function DashboardPage() {
   const { user } = useUserStore();
-  const [isModalOpen, setModalOpen] = useState(false);
+  const [isProductionModalOpen, setProductionModalOpen] = useState(false);
+  const [isSalesModalOpen, setSalesModalOpen] = useState(false);
 
-  const handleLogout = async () => {
-    try {
-      await doSignOut();
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-      Alert.alert('Erro', 'Não foi possível sair.');
-    }
+  const handleLogout = () => {
+    auth.signOut();
   };
 
   const handleSaveProduction = async (formData: { productName: string; costPerUnit: number; status: string }) => {
@@ -69,14 +23,26 @@ export default function DashboardPage() {
       Alert.alert("Erro", "Usuário não autenticado.");
       return;
     }
-    
     const result = await createLot(formData, user.uid);
-
     if (result.success) {
       Alert.alert("Sucesso!", "Lote de produção salvo.");
-      setModalOpen(false);
+      setProductionModalOpen(false);
     } else {
       Alert.alert("Erro", `Não foi possível salvar: ${result.error}`);
+    }
+  };
+
+  const handleSaveSale = async (formData: { productName: string; quantitySold: number; pricePerUnit: number; }) => {
+    if (!user) {
+      Alert.alert("Erro", "Usuário não autenticado.");
+      return;
+    }
+    const result = await recordSale(formData, user.uid);
+    if (result.success) {
+      Alert.alert("Sucesso!", "Venda registrada.");
+      setSalesModalOpen(false);
+    } else {
+      Alert.alert("Erro", `Não foi possível registrar venda: ${result.error}`);
     }
   };
 
@@ -85,27 +51,54 @@ export default function DashboardPage() {
       <Text style={styles.title}>Dashboard</Text>
       <Text style={styles.welcomeText}>Bem-vindo, {user?.email}!</Text>
 
-      <View style={styles.actionButtonContainer}>
-        <Button 
-          title="+ Adicionar Produção" 
-          onPress={() => setModalOpen(true)} 
-        />
+      <View style={styles.actionsContainer}>
+        {/* Botão para abrir o modal de produção */}
+        <View style={styles.buttonWrapper}>
+          <Button 
+            title="+ Adicionar Produção" 
+            onPress={() => setProductionModalOpen(true)} 
+          />
+        </View>
+        {/* Botão para abrir o modal de vendas */}
+        <View style={styles.buttonWrapper}>
+          <Button 
+            title="+ Registrar Venda" 
+            onPress={() => setSalesModalOpen(true)}
+            color="#28a745" // Verde para vendas
+          />
+        </View>
       </View>
 
       <View style={styles.logoutButtonContainer}>
-        <Button title="Sair" onPress={handleLogout} color="#ff4444" />
+        <Button title="Sair" onPress={handleLogout} color="#6c757d" />
       </View>
 
+      {/* Modal de Produção */}
       <Modal
-        visible={isModalOpen}
+        visible={isProductionModalOpen}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setModalOpen(false)}
+        onRequestClose={() => setProductionModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
           <ProductionForm
             onSave={handleSaveProduction}
-            onClose={() => setModalOpen(false)}
+            onClose={() => setProductionModalOpen(false)}
+          />
+        </View>
+      </Modal>
+
+      {/* Modal de Vendas */}
+      <Modal
+        visible={isSalesModalOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setSalesModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <SalesForm
+            onSave={handleSaveSale}
+            onClose={() => setSalesModalOpen(false)}
           />
         </View>
       </Modal>
@@ -116,9 +109,9 @@ export default function DashboardPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    paddingTop: 60,
+    paddingHorizontal: 20,
     backgroundColor: '#f5f5f5',
   },
   title: {
@@ -131,14 +124,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: '#666',
   },
-  actionButtonContainer: {
-    width: '80%',
-    marginVertical: 10,
+  actionsContainer: {
+    width: '100%',
+  },
+  buttonWrapper: {
+    marginVertical: 8,
+    width: '100%',
   },
   logoutButtonContainer: {
     position: 'absolute',
     bottom: 40,
-    width: '60%',
+    width: '80%',
   },
   modalOverlay: {
     flex: 1,
