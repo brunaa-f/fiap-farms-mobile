@@ -1,9 +1,15 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase'; // Importa sua configuração do Firestore do arquivo firebase.ts
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
+import { db } from './firebase'; 
 
-// Define a "forma" (interface) dos dados que vêm do nosso formulário.
-// Isso garante que não vamos passar dados errados para a função.
 interface LotData {
+  productName: string;
+  costPerUnit: number;
+  status: string;
+}
+
+export interface ProductionLot extends DocumentData {
+  id: string;
   productName: string;
   costPerUnit: number;
   status: string;
@@ -41,4 +47,19 @@ export const createLot = async (lotData: LotData, userId: string) => {
     // Retorna um objeto indicando a falha e qual foi a mensagem de erro.
     return { success: false, error: (error as Error).message };
   }
+};
+
+export const listenToProductionLots = (userId: string, callback: (lots: ProductionLot[]) => void) => {
+  const q = query(collection(db, 'production_lots'), where('ownerId', '==', userId));
+
+  const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const lots: ProductionLot[] = [];
+    querySnapshot.forEach((doc) => {
+      lots.push({ id: doc.id, ...doc.data() } as ProductionLot);
+    });
+
+    callback(lots);
+  });
+
+  return unsubscribe;
 };
